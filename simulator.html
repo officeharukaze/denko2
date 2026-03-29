@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第二種電気工事士 模擬試験シミュレーター</title>
+<style>
+:root {
+  --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
+  --success: #16a34a; --success-bg: #dcfce7;
+  --danger: #dc2626; --danger-bg: #fee2e2;
+  --warn: #f59e0b;
+  --bg: #f1f5f9; --card: #fff; --text: #1e293b; --muted: #64748b; --border: #e2e8f0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+button { cursor: pointer; font-family: inherit; }
+
+/* ===== Page Visibility ===== */
+.page { display: none; }
+.page--visible { display: block; }
+.page--visible-flex { display: flex; }
+
+/* ===== START PAGE ===== */
+.start-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+}
+.start-card {
+  background: var(--card); border-radius: 16px; padding: 48px 40px;
+  max-width: 480px; width: 90%; box-shadow: 0 4px 24px rgba(0,0,0,.08); text-align: center;
+}
+.start-card h1 { font-size: 22px; margin-bottom: 4px; }
+.start-card .sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.start-card .icon { font-size: 48px; margin-bottom: 12px; }
+.exam-select {
+  display: block; width: 100%; padding: 14px 16px; font-size: 16px;
+  border: 2px solid var(--border); border-radius: 8px; background: var(--card); margin-bottom: 12px;
+}
+.exam-select:focus { border-color: var(--primary); outline: none; }
+.chk-row { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 20px; font-size: 14px; color: var(--muted); }
+.chk-row input { width: 16px; height: 16px; }
+.btn-go {
+  display: block; width: 100%; padding: 14px; font-size: 17px; font-weight: 600;
+  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+}
+.btn-go:hover { background: var(--primary-dark); }
+.btn-go:disabled { background: #94a3b8; cursor: not-allowed; }
+.hist { margin-top: 28px; text-align: left; border-top: 1px solid var(--border); padding-top: 16px; }
+.hist h3 { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+.hist-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.hist-pass { color: var(--success); font-weight: 600; }
+.hist-fail { color: var(--danger); font-weight: 600; }
+
+/* ===== EXAM PAGE ===== */
+.exam-page { height: 100vh; flex-direction: column; }
+.exam-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; height: 52px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.exam-hdr .left { display: flex; align-items: center; gap: 12px; }
+.exam-hdr .title { font-weight: 600; font-size: 15px; }
+.clock { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.clock.warn { color: var(--warn); }
+.clock.danger { color: var(--danger); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .4; } }
+.exam-hdr .right { display: flex; align-items: center; gap: 12px; }
+.prog { font-size: 14px; color: var(--muted); }
+.btn-exit { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--muted); }
+.btn-score { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 16px; font-size: 14px; font-weight: 600; }
+.btn-score:hover { background: var(--primary-dark); }
+
+.exam-body { display: flex; flex: 1; overflow: hidden; }
+.pdf-side { flex: 3; background: #525659; display: flex; flex-direction: column; }
+.pdf-top { flex: 1; position: relative; }
+.pdf-top embed { width: 100%; height: 100%; border: none; }
+.pdf-bottom { flex-shrink: 0; height: 0; overflow: hidden; position: relative; }
+.pdf-bottom.show { height: 45%; }
+.pdf-bottom embed { width: 100%; height: 100%; border: none; }
+.pdf-bottom .pdf-bottom-label { position: absolute; top: 4px; left: 12px; color: #fff; font-size: 12px; font-weight: 600; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 4px; z-index: 1; pointer-events: none; }
+.resize-handle {
+  height: 6px; background: var(--border); cursor: row-resize; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; position: relative;
+  transition: background .15s;
+}
+.resize-handle:hover, .resize-handle.active { background: var(--primary); }
+.resize-handle::after { content: ''; width: 40px; height: 3px; border-radius: 2px; background: var(--muted); }
+.resize-handle.off { display: none; }
+.pdf-nav { display: flex; align-items: center; padding: 6px 12px; background: #3b3f42; flex-shrink: 0; }
+.pdf-nav button { background: #f59e0b; color: #000; border: 1px solid #f59e0b; border-radius: 4px; padding: 4px 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pdf-nav button:hover { background: #d97706; }
+.pdf-nav button.open { background: #16a34a; border-color: #16a34a; color: #fff; }
+.pdf-side.off { display: none; }
+.ans-side { flex: 1.2; overflow-y: auto; background: var(--card); border-left: 1px solid var(--border); min-width: 260px; }
+.ans-side.wide { flex: 1; min-width: 0; max-width: 600px; margin: 0 auto; border-left: none; }
+
+.sec-label {
+  position: sticky; top: 0; background: var(--bg); padding: 6px 16px;
+  font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); z-index: 1;
+}
+.qrow { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid #f1f5f9; }
+.qrow:hover { background: #f8fafc; }
+.qrow.focus { background: var(--primary-light); }
+.qrow.done { background: #f0fdf4; }
+.qnum { width: 36px; font-size: 14px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+.qchoices { display: flex; gap: 4px; flex: 1; }
+.cbtn {
+  flex: 1; padding: 6px 0; border: 2px solid var(--border); border-radius: 6px;
+  background: var(--card); font-size: 15px; font-weight: 500; text-align: center; min-width: 48px;
+}
+.cbtn:hover { border-color: var(--primary); color: var(--primary); }
+.cbtn.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cbtn.rt-ok { background: var(--success); border-color: var(--success); color: #fff; }
+.cbtn.rt-ng { background: var(--danger); border-color: var(--danger); color: #fff; opacity: .7; }
+.cbtn.rt-correct { border-color: var(--success); border-width: 3px; }
+.qrow.rt-done { pointer-events: none; }
+.rt-mark { width: 28px; font-size: 16px; text-align: center; flex-shrink: 0; }
+.rt-score { font-size: 14px; font-weight: 600; color: var(--success); margin-left: 4px; }
+.kbd-hint { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
+.kbd-hint kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 11px; }
+
+/* ===== RESULT PAGE ===== */
+.result-page { min-height: 100vh; padding: 24px; }
+.result-box { max-width: 640px; margin: 0 auto; }
+.sc-card {
+  background: var(--card); border-radius: 16px; padding: 40px;
+  text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.08); margin-bottom: 24px;
+}
+.badge { display: inline-block; padding: 6px 24px; border-radius: 20px; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.badge.pass { background: var(--success-bg); color: var(--success); }
+.badge.fail { background: var(--danger-bg); color: var(--danger); }
+.sc-num { font-size: 56px; font-weight: 800; line-height: 1.1; }
+.sc-num .tot { font-size: 28px; color: var(--muted); font-weight: 400; }
+.sc-pct { font-size: 20px; color: var(--muted); margin-top: 4px; }
+.sc-time { font-size: 14px; color: var(--muted); margin-top: 12px; }
+
+.cat-card, .det-card {
+  background: var(--card); border-radius: 12px; padding: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.05); margin-bottom: 24px;
+}
+.cat-card h3, .det-card h3 { font-size: 16px; margin-bottom: 16px; }
+.ctbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ctbl th { text-align: left; padding: 8px 4px; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 500; }
+.ctbl td { padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.bar-bg { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; width: 100px; }
+.bar-in { height: 100%; border-radius: 4px; }
+.bar-in.g { background: var(--success); }
+.bar-in.y { background: var(--warn); }
+.bar-in.r { background: var(--danger); }
+
+.drow { display: flex; align-items: center; padding: 6px 8px; border-radius: 6px; font-size: 14px; margin-bottom: 2px; }
+.drow.ok { background: var(--success-bg); }
+.drow.ng { background: var(--danger-bg); }
+.drow.na { background: #f1f5f9; }
+.drow span { display: inline-block; }
+.drow .c1 { width: 40px; font-weight: 600; }
+.drow .c2 { width: 80px; }
+.drow .c3 { width: 80px; font-weight: 600; }
+.drow .c4 { width: 30px; text-align: center; }
+
+.btn-top {
+  display: block; width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
+  background: var(--primary); color: #fff; border: none; border-radius: 8px; margin-top: 16px;
+}
+.btn-top:hover { background: var(--primary-dark); }
+
+@media (max-width: 768px) {
+  .exam-body { flex-direction: column; }
+  .pdf-side { flex: none; height: 50vh; }
+  .ans-side { flex: 1; min-width: 0; border-left: none; border-top: 1px solid var(--border); }
+  .start-card { padding: 32px 24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ========== START ========== -->
+<div id="pg-start" class="page start-page page--visible" style="display:flex">
+  <div class="start-card">
+    <div class="icon">📝</div>
+    <h1>第二種電気工事士</h1>
+    <h1>模擬試験シミュレーター</h1>
+    <p class="sub">直近10試験 × 50問 = 500問<br>38試験1,900問のデータで採点・分析</p>
+
+    <select class="exam-select" id="sel">
+      <option value="">-- 試験を選択してください --</option>
+      <option value="R04_下期_午前">令和4年 下期 午前</option>
+      <option value="R04_下期_午後">令和4年 下期 午後</option>
+      <option value="R05_上期_午前">令和5年 上期 午前</option>
+      <option value="R05_上期_午後">令和5年 上期 午後</option>
+      <option value="R05_下期_午前">令和5年 下期 午前</option>
+      <option value="R05_下期_午後">令和5年 下期 午後</option>
+      <option value="R06_上期">令和6年 上期</option>
+      <option value="R06_下期">令和6年 下期</option>
+      <option value="R07_上期">令和7年 上期</option>
+      <option value="R07_下期">令和7年 下期</option>
+
+    </select>
+
+    <div class="chk-row">
+      <input type="checkbox" id="nopdf">
+      <label for="nopdf">PDFなしモード（回答のみ）</label>
+    </div>
+    <div class="chk-row">
+      <input type="checkbox" id="realtime">
+      <label for="realtime">リアルタイム採点モード（即時に正誤表示）</label>
+    </div>
+
+    <button class="btn-go" id="btn-go" disabled>試験開始（120分）</button>
+
+    <div class="hist" id="hist-area">
+      <h3>📊 受験履歴</h3>
+      <div id="hist-list"><p style="font-size:13px;color:var(--muted)">まだ受験履歴がありません</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== EXAM ========== -->
+<div id="pg-exam" class="page exam-page">
+  <div class="exam-hdr">
+    <div class="left">
+      <button class="btn-exit" id="btn-exit">✕ 中断</button>
+      <span class="title" id="ex-title"></span>
+    </div>
+    <div class="clock" id="clock">02:00:00</div>
+    <div class="right">
+      <span class="prog" id="prog">0 / 50</span>
+      <span class="rt-score" id="rt-score" style="display:none">✓ 0</span>
+      <button class="btn-score" id="btn-submit">採点する</button>
+    </div>
+  </div>
+  <div class="exam-body">
+    <div class="pdf-side" id="pdf-side">
+      <div class="pdf-nav" id="pdf-nav">
+        <button id="pdf-p15">📐 配線図を表示 (15頁)</button>
+      </div>
+      <div class="pdf-top" id="pdf-top">
+        <embed id="pdf-frame" type="application/pdf" src="">
+      </div>
+      <div class="resize-handle" id="resize-handle"></div>
+      <div class="pdf-bottom" id="pdf-bottom">
+        <div class="pdf-bottom-label">配線図 (15頁)</div>
+        <embed id="pdf-diagram" type="application/pdf" src="">
+      </div>
+    </div>
+    <div class="ans-side" id="ans-side"></div>
+  </div>
+</div>
+
+<!-- ========== RESULT ========== -->
+<div id="pg-result" class="page result-page">
+  <div class="result-box" id="result-box"></div>
+</div>
+
+<script>
+// ======== DATA ========
+const ED = {
+  "R04_下期_午前": {"label": "令和4年 下期 午前", "pdf": "question_pdfs/R04_下期_午前_問題.pdf", "answers": {"1": "ハ", "2": "イ", "3": "ハ", "4": "ハ", "5": "ハ", "6": "ハ", "7": "ハ", "8": "イ", "9": "ニ", "10": "ロ", "11": "ロ", "12": "イ", "13": "ハ", "14": "ハ", "15": "ニ", "16": "ニ", "17": "ニ", "18": "イ", "19": "ロ", "20": "ハ", "21": "イ", "22": "ハ", "23": "ロ", "24": "ハ", "25": "ロ", "26": "ロ", "27": "イ", "28": "ロ", "29": "ハ", "30": "ロ", "31": "ハ", "32": "ハ", "33": "ハ", "34": "イ", "35": "ロ", "36": "ハ", "37": "ニ", "38": "ハ", "39": "ニ", "40": "ハ", "41": "ハ", "42": "ニ", "43": "ロ", "44": "ハ", "45": "ハ", "46": "ハ", "47": "ニ", "48": "ロ", "49": "イ", "50": "イ"}},
+  "R04_下期_午後": {"label": "令和4年 下期 午後", "pdf": "question_pdfs/R04_下期_午後_問題.pdf", "answers": {"1": "イ", "2": "ニ", "3": "ロ", "4": "ロ", "5": "ロ", "6": "ハ", "7": "ハ", "8": "ロ", "9": "ロ", "10": "ニ", "11": "イ", "12": "イ", "13": "ハ", "14": "ニ", "15": "ロ", "16": "ニ", "17": "ロ", "18": "イ", "19": "ハ", "20": "ロ", "21": "ロ", "22": "ニ", "23": "イ", "24": "ハ", "25": "ロ", "26": "ハ", "27": "ニ", "28": "ニ", "29": "ニ", "30": "イ", "31": "ハ", "32": "ハ", "33": "ハ", "34": "ニ", "35": "イ", "36": "ニ", "37": "ロ", "38": "ニ", "39": "ニ", "40": "ロ", "41": "ロ", "42": "ロ", "43": "ロ", "44": "ロ", "45": "ハ", "46": "ロ", "47": "ロ", "48": "ハ", "49": "ニ", "50": "イ"}},
+  "R05_上期_午前": {"label": "令和5年 上期 午前", "pdf": "question_pdfs/R05_上期_午前_問題.pdf", "answers": {"1": "ハ", "2": "イ", "3": "イ", "4": "ロ", "5": "ハ", "6": "ニ", "7": "ロ", "8": "ハ", "9": "ニ", "10": "ハ", "11": "ロ", "12": "イ", "13": "ロ", "14": "ハ", "15": "イ", "16": "ロ", "17": "ニ", "18": "イ", "19": "ニ", "20": "ニ", "21": "ニ", "22": "ハ", "23": "ニ", "24": "ハ", "25": "ロ", "26": "イ", "27": "ニ", "28": "ニ", "29": "ハ", "30": "イ", "31": "ハ", "32": "ニ", "33": "ニ", "34": "ハ", "35": "ニ", "36": "イ", "37": "ニ", "38": "イ", "39": "ロ", "40": "イ", "41": "ロ", "42": "ロ", "43": "イ", "44": "ハ", "45": "ハ", "46": "ニ", "47": "イ", "48": "ニ", "49": "イ", "50": "ハ"}},
+  "R05_上期_午後": {"label": "令和5年 上期 午後", "pdf": "question_pdfs/R05_上期_午後_問題.pdf", "answers": {"1": "ロ", "2": "ニ", "3": "ハ", "4": "ロ", "5": "ロ", "6": "ニ", "7": "ハ", "8": "ロ", "9": "ニ", "10": "ロ", "11": "イ", "12": "ロ", "13": "イ", "14": "ニ", "15": "ニ", "16": "イ", "17": "ロ", "18": "ハ", "19": "ハ", "20": "イ", "21": "ニ", "22": "ニ", "23": "ニ", "24": "イ", "25": "ニ", "26": "ロ", "27": "イ", "28": "イ", "29": "ロ", "30": "ハ", "31": "イ", "32": "ハ", "33": "イ", "34": "ニ", "35": "ロ", "36": "ニ", "37": "ニ", "38": "ハ", "39": "ニ", "40": "ロ", "41": "ロ", "42": "ハ", "43": "イ", "44": "ニ", "45": "ハ", "46": "ロ", "47": "ロ", "48": "ロ", "49": "ニ", "50": "イ"}},
+  "R05_下期_午前": {"label": "令和5年 下期 午前", "pdf": "question_pdfs/R05_下期_午前_問題.pdf", "answers": {"1": "ロ", "2": "イ", "3": "ロ", "4": "ハ", "5": "ハ", "6": "ロ", "7": "ロ", "8": "ロ", "9": "ニ", "10": "ニ", "11": "イ", "12": "ハ", "13": "ニ", "14": "イ", "15": "ハ", "16": "ハ", "17": "ニ", "18": "イ", "19": "ハ", "20": "ロ", "21": "ニ", "22": "イ", "23": "ロ", "24": "ハ", "25": "ハ", "26": "イ", "27": "ハ", "28": "イ", "29": "イ", "30": "ハ", "31": "ロ", "32": "イ", "33": "ハ", "34": "ロ", "35": "イ", "36": "ニ", "37": "ハ", "38": "イ", "39": "ハ", "40": "ニ", "41": "ニ", "42": "ロ", "43": "イ", "44": "イ", "45": "ハ", "46": "イ", "47": "ニ", "48": "イ", "49": "ニ", "50": "ロ"}},
+  "R05_下期_午後": {"label": "令和5年 下期 午後", "pdf": "question_pdfs/R05_下期_午後_問題.pdf", "answers": {"1": "ロ", "2": "イ", "3": "イ", "4": "ロ", "5": "ハ", "6": "ニ", "7": "ハ", "8": "ロ", "9": "ニ", "10": "ロ", "11": "イ", "12": "ロ", "13": "イ", "14": "ニ", "15": "ニ", "16": "イ", "17": "ロ", "18": "ハ", "19": "ハ", "20": "イ", "21": "ニ", "22": "ニ", "23": "ニ", "24": "イ", "25": "ニ", "26": "ロ", "27": "イ", "28": "イ", "29": "ロ", "30": "ハ", "31": "イ", "32": "ハ", "33": "イ", "34": "ニ", "35": "ロ", "36": "ニ", "37": "ニ", "38": "ハ", "39": "ニ", "40": "ロ", "41": "ロ", "42": "ハ", "43": "イ", "44": "ニ", "45": "ハ", "46": "ロ", "47": "ロ", "48": "ロ", "49": "ニ", "50": "イ"}},
+  "R06_上期": {"label": "令和6年 上期", "pdf": "question_pdfs/R06_上期_問題.pdf", "answers": {"1": "ロ", "2": "ハ", "3": "ニ", "4": "イ", "5": "ロ", "6": "イ", "7": "イ", "8": "ロ", "9": "ハ", "10": "イ", "11": "ハ", "12": "ロ", "13": "ニ", "14": "ロ", "15": "イ", "16": "ロ", "17": "ロ", "18": "イ", "19": "ロ", "20": "ニ", "21": "イ", "22": "ロ", "23": "イ", "24": "ニ", "25": "ニ", "26": "イ", "27": "ロ", "28": "イ", "29": "ハ", "30": "ニ", "31": "イ", "32": "ロ", "33": "ニ", "34": "イ", "35": "ハ", "36": "ハ", "37": "ロ", "38": "イ", "39": "イ", "40": "ロ", "41": "ロ", "42": "ハ", "43": "イ", "44": "イ", "45": "ニ", "46": "ニ", "47": "ニ", "48": "ロ", "49": "イ", "50": "ニ"}},
+  "R06_下期": {"label": "令和6年 下期", "pdf": "question_pdfs/R06_下期_問題.pdf", "answers": {"1": "ロ", "2": "イ", "3": "ハ", "4": "ハ", "5": "ニ", "6": "ニ", "7": "ニ", "8": "ハ", "9": "ハ", "10": "ロ", "11": "ロ", "12": "ハ", "13": "イ", "14": "ロ", "15": "ハ", "16": "ハ", "17": "ニ", "18": "イ", "19": "ハ", "20": "イ", "21": "ロ", "22": "ロ", "23": "ロ", "24": "ハ", "25": "ハ", "26": "イ", "27": "ハ", "28": "イ", "29": "ロ", "30": "ロ", "31": "ロ", "32": "ハ", "33": "ハ", "34": "ハ", "35": "ニ", "36": "ニ", "37": "ロ", "38": "ロ", "39": "イ", "40": "イ", "41": "ニ", "42": "ハ", "43": "イ", "44": "ニ", "45": "ハ", "46": "ハ", "47": "ロ", "48": "イ", "49": "イ", "50": "ロ"}},
+  "R07_上期": {"label": "令和7年 上期", "pdf": "question_pdfs/R07_上期_問題.pdf", "answers": {"1": "ロ", "2": "ハ", "3": "イ", "4": "ハ", "5": "ロ", "6": "ハ", "7": "ロ", "8": "ロ", "9": "ロ", "10": "ニ", "11": "ハ", "12": "ロ", "13": "ハ", "14": "ロ", "15": "ハ", "16": "イ", "17": "ハ", "18": "イ", "19": "ニ", "20": "ニ", "21": "ハ", "22": "ロ", "23": "イ", "24": "ハ", "25": "ハ", "26": "ロ", "27": "イ", "28": "ハ", "29": "ロ", "30": "イ", "31": "ロ", "32": "ニ", "33": "ロ", "34": "ニ", "35": "イ", "36": "ロ", "37": "ロ", "38": "ロ", "39": "イ", "40": "ハ", "41": "ロ", "42": "ロ", "43": "ニ", "44": "ハ", "45": "イ", "46": "ロ", "47": "ハ", "48": "ロ", "49": "ロ", "50": "ハ"}},
+  "R07_下期": {"label": "令和7年 下期", "pdf": "question_pdfs/R07_下期_問題.pdf", "answers": {"1": "ロ", "2": "イ", "3": "ハ", "4": "イ", "5": "ハ", "6": "ニ", "7": "ハ", "8": "ハ", "9": "ロ", "10": "ハ", "11": "イ", "12": "ロ", "13": "ニ", "14": "イ", "15": "ニ", "16": "ロ", "17": "ロ", "18": "ニ", "19": "ハ", "20": "ロ", "21": "イ", "22": "イ", "23": "イ", "24": "イ", "25": "ハ", "26": "イ", "27": "ニ", "28": "ニ", "29": "イ", "30": "ハ", "31": "ハ", "32": "ロ", "33": "ニ", "34": "イ", "35": "ロ", "36": "ハ", "37": "ロ", "38": "ニ", "39": "イ", "40": "ニ", "41": "ハ", "42": "ロ", "43": "ハ", "44": "イ", "45": "ロ", "46": "イ", "47": "ニ", "48": "イ", "49": "ニ", "50": "ハ"}},
+};
+
+const CATS = [
+  {n:"電気の基礎理論",s:1,e:7}, {n:"配電理論・配線設計",s:8,e:10},
+  {n:"電気機器・配線器具",s:11,e:15}, {n:"電気工事の施工方法",s:16,e:20},
+  {n:"検査・測定",s:21,e:25}, {n:"法令",s:26,e:30},
+  {n:"配線図（図記号）",s:31,e:35}, {n:"配線図（複線図）",s:36,e:40},
+  {n:"配線図（写真）",s:41,e:50},
+];
+const CH = ["イ","ロ","ハ","ニ"];
+const PASS = 30, TOTAL = 50, TIME = 7200;
+
+let curKey=null, ans={}, focQ=1, ticker=null, remain=TIME, t0=null, submitted=false, rtMode=false, rtOk=0;
+let curPdfBase='', showingDiagram=false;
+
+function toggleDiagram() {
+  const btn = document.getElementById('pdf-p15');
+  const bottom = document.getElementById('pdf-bottom');
+  const resizer = document.getElementById('resize-handle');
+  if (showingDiagram) {
+    bottom.classList.remove('show');
+    bottom.style.height = '';
+    document.getElementById('pdf-diagram').src = '';
+    resizer.classList.add('off');
+    btn.classList.remove('open');
+    btn.textContent = '📐 配線図を表示 (15頁)';
+    showingDiagram = false;
+  } else {
+    bottom.classList.add('show');
+    resizer.classList.remove('off');
+    setTimeout(function() {
+      document.getElementById('pdf-diagram').src = curPdfBase + '#page=15';
+    }, 50);
+    btn.classList.add('open');
+    btn.textContent = '✕ 配線図を閉じる';
+    showingDiagram = true;
+  }
+}
+
+// ======== PAGE NAV ========
+function go(id) {
+  document.querySelectorAll(".page").forEach(p => {
+    p.style.display = "none";
+    p.classList.remove("page--visible","page--visible-flex");
+  });
+  const el = document.getElementById(id);
+  if (id === "pg-exam") {
+    el.style.display = "flex";
+    el.classList.add("page--visible-flex");
+  } else if (id === "pg-start") {
+    el.style.display = "flex";
+    el.classList.add("page--visible-flex");
+  } else {
+    el.style.display = "block";
+    el.classList.add("page--visible");
+  }
+}
+
+// ======== SELECT ========
+const sel = document.getElementById("sel");
+const btnGo = document.getElementById("btn-go");
+sel.addEventListener("change", function() {
+  btnGo.disabled = !this.value;
+});
+
+// ======== START ========
+btnGo.addEventListener("click", function() {
+  curKey = sel.value;
+  if (!curKey) return;
+  const ex = ED[curKey];
+  const noPdf = document.getElementById("nopdf").checked;
+
+  ans = {}; focQ = 1; remain = TIME; submitted = false; t0 = Date.now(); rtOk = 0;
+  rtMode = document.getElementById("realtime").checked;
+  document.getElementById("rt-score").style.display = rtMode ? '' : 'none';
+  if (rtMode) document.getElementById("rt-score").textContent = '✓ 0';
+  document.getElementById("ex-title").textContent = ex.label;
+
+  const pdf = document.getElementById("pdf-side");
+  const ansSide = document.getElementById("ans-side");
+  const resizer = document.getElementById("resize-handle");
+  const pdfBottom = document.getElementById("pdf-bottom");
+  if (noPdf) { pdf.classList.add("off"); ansSide.classList.add("wide"); }
+  else {
+    pdf.classList.remove("off"); ansSide.classList.remove("wide");
+    curPdfBase = ex.pdf;
+    document.getElementById("pdf-frame").src = ex.pdf;
+    document.getElementById("pdf-diagram").src = '';
+    pdfBottom.classList.remove('show');
+    resizer.classList.add('off');
+    showingDiagram = false;
+    document.getElementById('pdf-p15').textContent = '📐 配線図を表示 (15頁)';
+    document.getElementById('pdf-p15').classList.remove('open');
+  }
+
+  buildQs();
+  updProg();
+  updClock();
+  ticker = setInterval(tick, 1000);
+  window.onbeforeunload = function() { return submitted ? null : ""; };
+  go("pg-exam");
+  setFoc(1);
+});
+
+function buildQs() {
+  let h = "";
+  for (const c of CATS) {
+    h += '<div class="sec-label">' + c.n + "（問" + c.s + "-" + c.e + "）</div>";
+    for (let q = c.s; q <= c.e; q++) {
+      h += '<div class="qrow" id="qr' + q + '" data-q="' + q + '">';
+      h += '<div class="qnum">問' + q + '</div><div class="qchoices">';
+      for (const ch of CH) {
+        h += '<button class="cbtn" data-q="' + q + '" data-c="' + ch + '">' + ch + '</button>';
+      }
+      h += '</div>';
+      if (rtMode) h += '<div class="rt-mark"></div>';
+      h += '</div>';
+    }
+  }
+  h += '<div class="kbd-hint"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>=イロハニ <kbd>↑</kbd><kbd>↓</kbd>=移動 <kbd>Enter</kbd>=次へ</div>';
+  document.getElementById("ans-side").innerHTML = h;
+
+  document.getElementById("ans-side").addEventListener("click", function(e) {
+    const btn = e.target.closest(".cbtn");
+    if (!btn) return;
+    pick(parseInt(btn.dataset.q), btn.dataset.c);
+  });
+}
+
+function pick(q, c) {
+  const row = document.getElementById("qr" + q);
+  if (rtMode && row.classList.contains('rt-done')) return;
+  ans[q] = c;
+  document.querySelectorAll('.cbtn[data-q="'+q+'"]').forEach(b => {
+    b.classList.remove('on','rt-ok','rt-ng','rt-correct');
+    if (b.dataset.c === c) b.classList.add('on');
+  });
+  row.classList.add("done");
+  updProg();
+  if (rtMode) {
+    const right = ED[curKey].answers[String(q)];
+    const isOk = c === right;
+    row.classList.add('rt-done');
+    document.querySelectorAll('.cbtn[data-q="'+q+'"]').forEach(b => {
+      b.classList.remove('on');
+      if (b.dataset.c === c && isOk) b.classList.add('rt-ok');
+      else if (b.dataset.c === c && !isOk) b.classList.add('rt-ng');
+      if (b.dataset.c === right && !isOk) b.classList.add('rt-correct');
+    });
+    const mark = row.querySelector('.rt-mark');
+    if (mark) mark.textContent = isOk ? '○' : '✕';
+    if (isOk) rtOk++;
+    document.getElementById('rt-score').textContent = '✓ ' + rtOk;
+  }
+  setFoc(q);
+}
+
+function setFoc(q) {
+  document.querySelectorAll(".qrow.focus").forEach(r => r.classList.remove("focus"));
+  const row = document.getElementById("qr" + q);
+  if (row) { row.classList.add("focus"); row.scrollIntoView({block:"nearest",behavior:"smooth"}); focQ = q; }
+}
+
+function updProg() { document.getElementById("prog").textContent = Object.keys(ans).length + " / " + TOTAL; }
+
+// ======== TIMER ========
+function tick() {
+  remain--;
+  if (remain <= 0) { clearInterval(ticker); remain = 0; updClock(); alert("時間切れ！自動採点します。"); doScore(); return; }
+  updClock();
+}
+function updClock() {
+  const h = Math.floor(remain/3600), m = Math.floor((remain%3600)/60), s = remain%60;
+  const el = document.getElementById("clock");
+  el.textContent = String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  el.classList.remove("warn","danger");
+  if (remain <= 300) el.classList.add("danger");
+  else if (remain <= 600) el.classList.add("warn");
+}
+
+// ======== SUBMIT ========
+document.getElementById("btn-submit").addEventListener("click", function() {
+  const n = Object.keys(ans).length;
+  if (n < TOTAL) { if (!confirm("未回答が " + (TOTAL-n) + " 問あります。採点しますか？")) return; }
+  else { if (!confirm("採点しますか？")) return; }
+  doScore();
+});
+
+document.getElementById("btn-exit").addEventListener("click", function() {
+  if (!confirm("中断しますか？回答は保存されません。")) return;
+  clearInterval(ticker); window.onbeforeunload = null; go("pg-start"); showHist();
+});
+
+function doScore() {
+  clearInterval(ticker); submitted = true; window.onbeforeunload = null;
+  const elapsed = Math.round((Date.now()-t0)/1000);
+  const correct_ans = ED[curKey].answers;
+  let ok = 0;
+  const results = [];
+  for (let q = 1; q <= TOTAL; q++) {
+    const yours = ans[q] || null;
+    const right = correct_ans[String(q)];
+    const isOk = yours === right;
+    if (isOk) ok++;
+    results.push({q, yours, right, isOk});
+  }
+  const catSc = CATS.map(c => {
+    let t=0, r=0;
+    for (let i=c.s;i<=c.e;i++) { t++; if(ans[i]===correct_ans[String(i)]) r++; }
+    return {...c, t, r, pct: t>0?Math.round(100*r/t):0};
+  });
+  saveHist(curKey, ok, elapsed, ans, results);
+  renderResult(ok, elapsed, catSc, results);
+  go("pg-result");
+}
+
+function renderResult(ok, elapsed, catSc, results) {
+  const pass = ok >= PASS;
+  const pct = Math.round(100*ok/TOTAL);
+  const em = Math.floor(elapsed/60), es = elapsed%60;
+  let h = '<div class="sc-card">';
+  h += '<div class="badge '+(pass?'pass':'fail')+'">'+(pass?'🎉 合格':'😥 不合格')+'</div>';
+  h += '<div class="sc-num">'+ok+' <span class="tot">/ '+TOTAL+'</span></div>';
+  h += '<div class="sc-pct">'+pct+'%（合格ライン: 60%）</div>';
+  h += '<div class="sc-time">所要時間: '+em+'分'+String(es).padStart(2,'0')+'秒</div></div>';
+
+  h += '<div class="cat-card"><h3>分野別スコア</h3><table class="ctbl"><thead><tr><th>分野</th><th>正解</th><th>率</th><th></th></tr></thead><tbody>';
+  for (const c of catSc) {
+    const bc = c.pct>=70?'g':c.pct>=50?'y':'r';
+    h += '<tr><td>'+c.n+'</td><td>'+c.r+'/'+c.t+'</td><td>'+c.pct+'%</td>';
+    h += '<td><div class="bar-bg"><div class="bar-in '+bc+'" style="width:'+c.pct+'%"></div></div></td></tr>';
+  }
+  h += '</tbody></table></div>';
+
+  h += '<div class="det-card"><h3>問題別結果</h3>';
+  for (const r of results) {
+    const cls = !r.yours?'na':r.isOk?'ok':'ng';
+    const mk = !r.yours?'−':r.isOk?'○':'✕';
+    h += '<div class="drow '+cls+'"><span class="c1">問'+r.q+'</span><span class="c2">'+(r.yours||'未回答')+'</span><span class="c3">正解: '+r.right+'</span><span class="c4">'+mk+'</span></div>';
+  }
+  h += '</div>';
+  h += '<button class="btn-top" id="btn-back">トップに戻る</button>';
+  document.getElementById("result-box").innerHTML = h;
+  document.getElementById("btn-back").addEventListener("click", function() { go("pg-start"); showHist(); });
+}
+
+// ======== HISTORY ========
+function getHist() { try { return JSON.parse(localStorage.getItem("exam_hist")||"[]"); } catch { return []; } }
+function saveHist(key, score, elapsed, answers, results) {
+  const h = getHist();
+  // answers, results, date(ISO)も保存
+  h.unshift({
+    exam: key,
+    label: ED[key].label,
+    score,
+    total: TOTAL,
+    elapsed,
+    date: new Date().toISOString(),
+    answers: typeof answers === 'object' ? { ...answers } : {},
+    results: Array.isArray(results) ? results : []
+  });
+  if (h.length > 50) h.length = 50;
+  localStorage.setItem("exam_hist", JSON.stringify(h));
+}
+function showHist() {
+  const h = getHist();
+  const el = document.getElementById("hist-list");
+  if (!h.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">まだ受験履歴がありません</p>'; return; }
+  el.innerHTML = h.slice(0,10).map((i,idx) => {
+    const p = i.score >= PASS;
+    let dateStr = '';
+    if (i.date) {
+      const d = new Date(i.date);
+      dateStr = d.toLocaleDateString('ja-JP') + ' ' + d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    }
+    // 履歴行全体をクリック可能に
+    return `<div class="hist-row" style="cursor:pointer;" data-idx="${idx}"><span>${i.label} (${dateStr})</span><span class="${p?'hist-pass':'hist-fail'}">${i.score}/${i.total}${p?' ✅':' ❌'}</span></div>`;
+  }).join("");
+  // 履歴行クリックで詳細表示
+  Array.from(el.querySelectorAll('.hist-row')).forEach(row => {
+    row.addEventListener('click', function() {
+      const idx = this.getAttribute('data-idx');
+      const all = getHist();
+      const hist = all[idx];
+      if (hist) showHistoryResultPage(hist);
+    });
+  });
+// 履歴詳細をpg-result画面で表示
+function showHistoryResultPage(hist) {
+  go("pg-result");
+  let ok = hist.score || 0;
+  let elapsed = hist.elapsed || 0;
+  let results = hist.results || [];
+  let answers = hist.answers || {};
+  let catSc = [];
+  if (results.length && typeof ED[hist.exam] !== 'undefined') {
+    // 分野別スコア再計算
+    const correct_ans = ED[hist.exam].answers;
+    catSc = CATS.map(c => {
+      let t=0, r=0;
+      for (let i=c.s;i<=c.e;i++) { t++; if(answers[i]===correct_ans[String(i)]) r++; }
+      return {...c, t, r, pct: t>0?Math.round(100*r/t):0};
+    });
+  }
+  // result-box描画
+  renderResult(ok, elapsed, catSc, results);
+}
+// 詳細ダイアログ生成
+function showHistoryDetailDialog(hist) {
+  let html = `<div style="padding:18px 12px 8px 12px;max-width:420px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.12);">
+    <div style='font-weight:600;font-size:16px;margin-bottom:6px;'>${hist.label||hist.exam}</div>
+    <div style='font-size:13px;color:#64748b;margin-bottom:8px;'>${hist.date?new Date(hist.date).toLocaleString('ja-JP'):''}</div>
+    <div style='font-size:14px;margin-bottom:8px;'>正解数: <b>${hist.score}</b> / ${hist.total}　所要時間: <b>${Math.floor((hist.elapsed||0)/60)}分${String((hist.elapsed||0)%60).padStart(2,'0')}秒</b></div>
+    <div style='font-size:14px;margin-bottom:8px;'>間違えた問題:</div>`;
+  if (hist.results && hist.results.length) {
+    const wrong = hist.results.filter(r=>!r.isOk);
+    if (wrong.length===0) {
+      html += `<div style='color:#16a34a;font-size:15px;margin-bottom:8px;'>全問正解！</div>`;
+    } else {
+      html += `<ul style='margin-left:1em;margin-bottom:8px;'>`;
+      for (const r of wrong) {
+        html += `<li>問${r.q}　あなた: <b>${r.yours||'未回答'}</b>　正解: <b>${r.right}</b></li>`;
+      }
+      html += `</ul>`;
+    }
+  } else {
+    html += `<div style='color:#64748b;font-size:13px;'>詳細データなし</div>`;
+  }
+  html += `<div style='text-align:right;'><button id='close-hist-detail' style='margin-top:8px;padding:6px 18px;font-size:14px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;'>閉じる</button></div></div>`;
+  let dlg = document.createElement('div');
+  dlg.id = 'hist-detail-dialog';
+  dlg.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.18);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  dlg.innerHTML = html;
+  document.body.appendChild(dlg);
+  document.getElementById('close-hist-detail').onclick = ()=>{ dlg.remove(); };
+}
+}
+
+// ======== KEYBOARD ========
+document.addEventListener("keydown", function(e) {
+  if (document.getElementById("pg-exam").style.display !== "flex") return;
+  if (e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA") return;
+  switch(e.key) {
+    case "1": pick(focQ,"イ"); break;
+    case "2": pick(focQ,"ロ"); break;
+    case "3": pick(focQ,"ハ"); break;
+    case "4": pick(focQ,"ニ"); break;
+    case "ArrowDown": e.preventDefault(); if(focQ<TOTAL) setFoc(focQ+1); break;
+    case "ArrowUp": e.preventDefault(); if(focQ>1) setFoc(focQ-1); break;
+    case "Enter": e.preventDefault(); if(focQ<TOTAL) setFoc(focQ+1); break;
+  }
+});
+
+// ======== PDF NAV ========
+document.getElementById('pdf-p15').addEventListener('click', toggleDiagram);
+
+// ======== RESIZE HANDLE ========
+(function() {
+  const handle = document.getElementById('resize-handle');
+  const pdfSide = document.getElementById('pdf-side');
+  const pdfBottom = document.getElementById('pdf-bottom');
+  let dragging = false, startY = 0, startH = 0;
+
+  function disableEmbeds() {
+    pdfSide.querySelectorAll('embed').forEach(function(el) { el.style.pointerEvents = 'none'; });
+  }
+  function enableEmbeds() {
+    pdfSide.querySelectorAll('embed').forEach(function(el) { el.style.pointerEvents = ''; });
+  }
+
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = pdfBottom.getBoundingClientRect().height;
+    handle.classList.add('active');
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    disableEmbeds();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    const sideH = pdfSide.getBoundingClientRect().height;
+    let newH = startH - (e.clientY - startY);
+    const minH = 80, maxH = sideH - 120;
+    if (newH < minH) newH = minH;
+    if (newH > maxH) newH = maxH;
+    pdfBottom.style.height = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    enableEmbeds();
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    dragging = true;
+    startY = e.touches[0].clientY;
+    startH = pdfBottom.getBoundingClientRect().height;
+    handle.classList.add('active');
+    disableEmbeds();
+  });
+  document.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    const sideH = pdfSide.getBoundingClientRect().height;
+    let newH = startH - (e.touches[0].clientY - startY);
+    const minH = 80, maxH = sideH - 120;
+    if (newH < minH) newH = minH;
+    if (newH > maxH) newH = maxH;
+    pdfBottom.style.height = newH + 'px';
+  });
+  document.addEventListener('touchend', function() {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('active');
+    enableEmbeds();
+  });
+})();
+
+showHist();
+</script>
+</body>
+</html>
