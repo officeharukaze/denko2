@@ -325,7 +325,7 @@ function renderStartPage() {
   validKeys.forEach(function(key) {
     const opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = ED[key].label;
+    opt.textContent = formatExamListLabel(ED[key].label);
     select.appendChild(opt);
   });
 
@@ -391,6 +391,16 @@ function formatSourceLabel(label) {
   return '出典：' + year + term + '第二種電気工事士試験' + session;
 }
 
+function formatExamListLabel(label) {
+  const match = String(label || '').match(/^令和(元|\d+)年\s+(上期|下期)(?:\s+(午前|午後))?$/);
+  if (!match) return label || '';
+  const reiwaYear = match[1] === '元' ? 1 : parseInt(match[1], 10);
+  const westernYear = Number.isFinite(reiwaYear) ? reiwaYear + 2018 : null;
+  const suffix = [match[2], match[3]].filter(Boolean).join(' ');
+  if (!westernYear) return label;
+  return westernYear + '年度（令和' + match[1] + '年） ' + suffix;
+}
+
 function getSourceNoteHtml(key) {
   if (!key || !ED[key]) {
     return '出典は選択した試験に応じて表示されます。<br>問題文の改変はありません。出題範囲表示はアプリ独自の参考区分です。';
@@ -426,7 +436,7 @@ btnGo.addEventListener("click", function() {
   document.getElementById("rt-score").style.display = rtMode ? '' : 'none';
   if (rtMode) document.getElementById("rt-score").textContent = '✓ 0';
   syncReviewFilterButton();
-  document.getElementById("ex-title").textContent = ex.label;
+  document.getElementById("ex-title").textContent = formatExamListLabel(ex.label);
   updateExamSourceBar(curKey);
 
   const pdf = document.getElementById("pdf-side");
