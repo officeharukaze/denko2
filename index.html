@@ -47,6 +47,21 @@ button { cursor: pointer; font-family: inherit; }
 .btn-go:disabled { background: #94a3b8; cursor: not-allowed; }
 .hist { margin-top: 28px; text-align: left; border-top: 1px solid var(--border); padding-top: 16px; }
 .hist h3 { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+.hist-summary {
+  margin-bottom: 10px; font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+.hist-exam-rates {
+  margin-bottom: 12px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.hist-exam-rates-title {
+  margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.hist-exam-rate-row {
+  display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12px;
+}
+.hist-exam-rate-row span:last-child {
+  white-space: nowrap; color: var(--text); font-variant-numeric: tabular-nums;
+}
 .hist-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
 .hist-pass { color: var(--success); font-weight: 600; }
 .hist-fail { color: var(--danger); font-weight: 600; }
@@ -333,8 +348,19 @@ function renderStartPage() {
 
 renderStartPage();
 
-let curKey=null, ans={}, reviewMarks={}, focQ=1, ticker=null, remain=TIME, t0=null, submitted=false, rtMode=false, rtOk=0, showReviewOnly=false;
+let curKey=null, ans={}, reviewMarks={}, focQ=1, ticker=null, remain=TIME, t0=null, submitted=false, rtMode=false, rtOk=0, showReviewOnly=false, curNoPdf=false;
 let curPdfBase='', showingDiagram=false;
+
+function trackAnalytics(eventName, params) {
+  if (typeof window.gtag !== 'function') return;
+  const payload = {};
+  Object.entries(params || {}).forEach(function(entry) {
+    const key = entry[0];
+    const value = entry[1];
+    if (value !== undefined && value !== null && value !== '') payload[key] = value;
+  });
+  window.gtag('event', eventName, payload);
+}
 
 function toggleDiagram() {
   const btn = document.getElementById('pdf-p15');
@@ -348,6 +374,11 @@ function toggleDiagram() {
     btn.classList.remove('open');
     btn.textContent = '📐 配線図を表示 (15頁)';
     showingDiagram = false;
+    trackAnalytics('diagram_toggle', {
+      exam_key: curKey,
+      action: 'close',
+      action_label: '非表示'
+    });
   } else {
     bottom.classList.add('show');
     resizer.classList.remove('off');
@@ -357,6 +388,11 @@ function toggleDiagram() {
     btn.classList.add('open');
     btn.textContent = '✕ 配線図を閉じる';
     showingDiagram = true;
+    trackAnalytics('diagram_toggle', {
+      exam_key: curKey,
+      action: 'open',
+      action_label: '表示'
+    });
   }
 }
 
@@ -401,6 +437,10 @@ function formatExamListLabel(label) {
   return westernYear + '年度（令和' + match[1] + '年） ' + suffix;
 }
 
+function formatBooleanLabel(value) {
+  return value ? 'オン' : 'オフ';
+}
+
 function getSourceNoteHtml(key) {
   if (!key || !ED[key]) {
     return '出典は選択した試験に応じて表示されます。<br>問題文の改変はありません。出題範囲表示はアプリ独自の参考区分です。';
@@ -432,6 +472,7 @@ btnGo.addEventListener("click", function() {
   const noPdf = document.getElementById("nopdf").checked;
 
   ans = {}; reviewMarks = {}; focQ = 1; remain = TIME; submitted = false; t0 = Date.now(); rtOk = 0; showReviewOnly = false;
+  curNoPdf = noPdf;
   rtMode = document.getElementById("realtime").checked;
   document.getElementById("rt-score").style.display = rtMode ? '' : 'none';
   if (rtMode) document.getElementById("rt-score").textContent = '✓ 0';
@@ -461,6 +502,15 @@ btnGo.addEventListener("click", function() {
   updClock();
   ticker = setInterval(tick, 1000);
   window.onbeforeunload = function() { return submitted ? null : ""; };
+  trackAnalytics('exam_start', {
+    exam_key: curKey,
+    exam_label: ex.label,
+    exam_list_label: formatExamListLabel(ex.label),
+    no_pdf_mode: noPdf,
+    no_pdf_mode_label: formatBooleanLabel(noPdf),
+    realtime_mode: rtMode,
+    realtime_mode_label: formatBooleanLabel(rtMode)
+  });
   go("pg-exam");
   setFoc(1);
 });
@@ -601,7 +651,7 @@ function moveFocus(delta) {
 // ======== TIMER ========
 function tick() {
   remain--;
-  if (remain <= 0) { clearInterval(ticker); remain = 0; updClock(); alert("時間切れ！自動採点します。"); doScore(); return; }
+  if (remain <= 0) { clearInterval(ticker); remain = 0; updClock(); alert("時間切れ！自動採点します。"); doScore('timeout'); return; }
   updClock();
 }
 function updClock() {
@@ -618,21 +668,36 @@ document.getElementById("btn-submit").addEventListener("click", function() {
   const n = Object.keys(ans).length;
   if (n < TOTAL) { if (!confirm("未回答が " + (TOTAL-n) + " 問あります。採点しますか？")) return; }
   else { if (!confirm("採点しますか？")) return; }
-  doScore();
+  doScore('manual');
 });
 
 document.getElementById("btn-exit").addEventListener("click", function() {
   if (!confirm("中断しますか？回答は保存されません。")) return;
+  trackAnalytics('exam_exit', {
+    exam_key: curKey,
+    exam_label: ED[curKey] ? ED[curKey].label : curKey,
+    answered_count: Object.keys(ans).length,
+    realtime_mode: rtMode,
+    realtime_mode_label: formatBooleanLabel(rtMode),
+    no_pdf_mode: curNoPdf,
+    no_pdf_mode_label: formatBooleanLabel(curNoPdf)
+  });
   clearInterval(ticker); window.onbeforeunload = null; go("pg-start"); showHist();
 });
 
 document.getElementById('btn-review-filter').addEventListener('click', function() {
   if (rtMode) return;
   showReviewOnly = !showReviewOnly;
+  trackAnalytics('review_filter_toggle', {
+    exam_key: curKey,
+    enabled: showReviewOnly,
+    enabled_label: showReviewOnly ? '見直しのみ表示' : '全問題表示',
+    marked_count: Object.keys(reviewMarks).length
+  });
   applyReviewFilter();
 });
 
-function doScore() {
+function doScore(source) {
   clearInterval(ticker); submitted = true; window.onbeforeunload = null;
   const elapsed = Math.round((Date.now()-t0)/1000);
   const correct_ans = ED[curKey].answers;
@@ -649,6 +714,22 @@ function doScore() {
     let t=0, r=0;
     for (let i=c.s;i<=c.e;i++) { t++; if(ans[i]===correct_ans[String(i)]) r++; }
     return {...c, t, r, pct: t>0?Math.round(100*r/t):0};
+  });
+  trackAnalytics('exam_submit', {
+    exam_key: curKey,
+    exam_label: ED[curKey] ? ED[curKey].label : curKey,
+    exam_list_label: ED[curKey] ? formatExamListLabel(ED[curKey].label) : curKey,
+    source: source || 'manual',
+    source_label: (source || 'manual') === 'timeout' ? '時間切れ自動採点' : '手動採点',
+    answered_count: Object.keys(ans).length,
+    score: ok,
+    passed: ok >= PASS,
+    result_label: ok >= PASS ? '合格' : '不合格',
+    elapsed_sec: elapsed,
+    realtime_mode: rtMode,
+    realtime_mode_label: formatBooleanLabel(rtMode),
+    no_pdf_mode: curNoPdf,
+    no_pdf_mode_label: formatBooleanLabel(curNoPdf)
   });
   saveHist(curKey, ok, elapsed, ans, results);
   renderResult(ok, elapsed, catSc, results);
@@ -682,17 +763,33 @@ function renderResult(ok, elapsed, catSc, results) {
   h += '</div>';
   h += '<button class="btn-top" id="btn-back">トップに戻る</button>';
   document.getElementById("result-box").innerHTML = h;
-  document.getElementById("btn-back").addEventListener("click", function() { go("pg-start"); showHist(); });
+  document.getElementById("btn-back").addEventListener("click", function() {
+    trackAnalytics('result_back_to_top', {
+      exam_key: curKey,
+      exam_label: ED[curKey] ? ED[curKey].label : curKey
+    });
+    go("pg-start"); showHist();
+  });
 }
 
 // ======== HISTORY ========
-function getHist() { try { return JSON.parse(localStorage.getItem("exam_hist")||"[]"); } catch { return []; } }
+function getHist() {
+  try {
+    return JSON.parse(localStorage.getItem("exam_hist") || "[]").map(function(item) {
+      if (typeof item.rtMode !== 'boolean') item.rtMode = false;
+      return item;
+    });
+  } catch {
+    return [];
+  }
+}
 function saveHist(key, score, elapsed, answers, results) {
   const h = getHist();
   // answers, results, date(ISO)も保存
   h.unshift({
     exam: key,
     label: ED[key].label,
+    rtMode: rtMode,
     score,
     total: TOTAL,
     elapsed,
@@ -707,15 +804,58 @@ function showHist() {
   const h = getHist();
   const el = document.getElementById("hist-list");
   if (!h.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">まだ受験履歴がありません</p>'; return; }
-  el.innerHTML = h.slice(0,10).map((i,idx) => {
+  let normalCount = 0;
+  let realtimeCount = 0;
+  let passCount = 0;
+  let failCount = 0;
+  const examStats = {};
+  const recentFive = h.slice(0, 5);
+  h.forEach(function(item) {
+    if (item.rtMode === true) realtimeCount++;
+    else normalCount++;
+    if (typeof item.score === 'number') {
+      if (item.score >= PASS) passCount++;
+      else failCount++;
+    }
+    if (!examStats[item.exam]) {
+      examStats[item.exam] = { label: item.label || item.exam, total: 0, pass: 0 };
+    }
+    examStats[item.exam].total++;
+    if (typeof item.score === 'number' && item.score >= PASS) examStats[item.exam].pass++;
+  });
+
+  let summary = '<div class="hist-summary">';
+  summary += '通常モード: ' + normalCount + '回 / リアルタイム採点モード: ' + realtimeCount + '回';
+  summary += '<br>合格: ' + passCount + '回 / 不合格: ' + failCount + '回';
+  if (recentFive.length > 0) {
+    const recentPassCount = recentFive.filter(function(item) {
+      return typeof item.score === 'number' && item.score >= PASS;
+    }).length;
+    const recentPassRate = Math.round((recentPassCount / recentFive.length) * 100);
+    summary += '<br>直近5回の合格率: ' + recentPassCount + '/' + recentFive.length + ' (' + recentPassRate + '%)';
+  }
+  summary += '</div>';
+
+  const examOrder = Array.isArray(START_PAGE.examOrder) ? START_PAGE.examOrder : [];
+  const orderedExamKeys = examOrder.filter(function(key) { return !!examStats[key]; });
+  const remainingExamKeys = Object.keys(examStats).filter(function(key) { return !orderedExamKeys.includes(key); });
+  const examRateRows = orderedExamKeys.concat(remainingExamKeys).map(function(key) {
+    const stat = examStats[key];
+    const pct = stat.total > 0 ? Math.round((stat.pass / stat.total) * 100) : 0;
+    return '<div class="hist-exam-rate-row"><span>' + formatExamListLabel(stat.label) + '</span><span>' + stat.pass + '/' + stat.total + ' (' + pct + '%)</span></div>';
+  }).join('');
+  const examRates = '<div class="hist-exam-rates"><div class="hist-exam-rates-title">試験別の合格率</div>' + examRateRows + '</div>';
+
+  el.innerHTML = summary + examRates + h.slice(0,10).map((i,idx) => {
     const p = i.score >= PASS;
     let dateStr = '';
     if (i.date) {
       const d = new Date(i.date);
       dateStr = d.toLocaleDateString('ja-JP') + ' ' + d.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
     }
+    const modeLabel = i.rtMode === true ? 'リアルタイム' : '通常';
     // 履歴行全体をクリック可能に
-    return `<div class="hist-row" style="cursor:pointer;" data-idx="${idx}"><span>${i.label} (${dateStr})</span><span class="${p?'hist-pass':'hist-fail'}">${i.score}/${i.total}${p?' ✅':' ❌'}</span></div>`;
+    return `<div class="hist-row" style="cursor:pointer;" data-idx="${idx}"><span>${i.label} [${modeLabel}] (${dateStr})</span><span class="${p?'hist-pass':'hist-fail'}">${i.score}/${i.total}${p?' ✅':' ❌'}</span></div>`;
   }).join("");
   // 履歴行クリックで詳細表示
   Array.from(el.querySelectorAll('.hist-row')).forEach(row => {
@@ -723,7 +863,16 @@ function showHist() {
       const idx = this.getAttribute('data-idx');
       const all = getHist();
       const hist = all[idx];
-      if (hist) showHistoryResultPage(hist);
+      if (hist) {
+        trackAnalytics('history_result_open', {
+          exam_key: hist.exam,
+          exam_label: hist.label,
+          exam_list_label: formatExamListLabel(hist.label),
+          score: hist.score,
+          result_label: hist.score >= PASS ? '合格' : '不合格'
+        });
+        showHistoryResultPage(hist);
+      }
     });
   });
 // 履歴詳細をpg-result画面で表示
