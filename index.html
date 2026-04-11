@@ -62,7 +62,17 @@ button { cursor: pointer; font-family: inherit; }
 .hist-exam-rate-row span:last-child {
   white-space: nowrap; color: var(--text); font-variant-numeric: tabular-nums;
 }
-.hist-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.hist-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border);
+}
+.hist-row-main {
+  font-weight: 500; color: var(--text);
+}
+.hist-row-sub {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; font-size: 12px; color: var(--muted);
+}
 .hist-pass { color: var(--success); font-weight: 600; }
 .hist-fail { color: var(--danger); font-weight: 600; }
 .credit-note {
@@ -253,6 +263,9 @@ button { cursor: pointer; font-family: inherit; }
   }
   .pdf-nav button {
     width: 100%; font-size: 12px; padding: 6px 10px;
+  }
+  .hist-row-sub {
+    gap: 8px;
   }
 }
 </style>
@@ -897,7 +910,7 @@ function showHist() {
     }
     const modeLabel = i.rtMode === true ? 'リアルタイム' : '通常';
     // 履歴行全体をクリック可能に
-    return `<div class="hist-row" style="cursor:pointer;" data-idx="${idx}"><span>${i.label} [${modeLabel}] (${dateStr})</span><span class="${p?'hist-pass':'hist-fail'}">${i.score}/${i.total}${p?' ✅':' ❌'}</span></div>`;
+    return `<div class="hist-row" style="cursor:pointer;" data-idx="${idx}"><span class="hist-row-main">${i.label}</span><span class="hist-row-sub"><span>${dateStr} [${modeLabel}]</span><span class="${p?'hist-pass':'hist-fail'}">${i.score}/${i.total}${p?' ✅':' ❌'}</span></span></div>`;
   }).join("");
   // 履歴行クリックで詳細表示
   Array.from(el.querySelectorAll('.hist-row')).forEach(row => {
