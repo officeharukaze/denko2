@@ -75,13 +75,16 @@ button { cursor: pointer; font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px; height: 52px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.exam-hdr .left { display: flex; align-items: center; gap: 12px; }
-.exam-hdr .title { font-weight: 600; font-size: 15px; }
+.exam-hdr .left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.exam-hdr .title {
+  font-weight: 600; font-size: 15px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .clock { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .clock.warn { color: var(--warn); }
 .clock.danger { color: var(--danger); animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: .4; } }
-.exam-hdr .right { display: flex; align-items: center; gap: 12px; }
+.exam-hdr .right { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .prog { font-size: 14px; color: var(--muted); }
 .btn-exit { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--muted); }
 .btn-review {
@@ -212,6 +215,45 @@ button { cursor: pointer; font-family: inherit; }
   .pdf-side { flex: none; height: 50vh; }
   .ans-side { flex: 1; min-width: 0; border-left: none; border-top: 1px solid var(--border); }
   .start-card { padding: 32px 24px; }
+
+  .exam-hdr {
+    height: auto; padding: 10px 12px; gap: 8px;
+    align-items: flex-start; flex-wrap: wrap;
+  }
+  .exam-hdr .left,
+  .exam-hdr .right {
+    width: 100%;
+  }
+  .exam-hdr .left {
+    gap: 8px;
+  }
+  .exam-hdr .title {
+    font-size: 14px;
+  }
+  .clock {
+    order: 2; width: 100%; font-size: 20px; text-align: center; line-height: 1.2;
+  }
+  .exam-hdr .right {
+    order: 3; gap: 8px; flex-wrap: wrap; justify-content: flex-start;
+  }
+  .prog,
+  .rt-score {
+    font-size: 12px;
+  }
+  .btn-exit,
+  .btn-review,
+  .btn-score {
+    padding: 6px 10px; font-size: 12px;
+  }
+  .exam-source-bar {
+    padding: 6px 12px; font-size: 11px;
+  }
+  .pdf-nav {
+    padding: 6px 8px;
+  }
+  .pdf-nav button {
+    width: 100%; font-size: 12px; padding: 6px 10px;
+  }
 }
 </style>
 <!-- Google tag (gtag.js) -->
