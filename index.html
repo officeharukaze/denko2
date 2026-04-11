@@ -66,6 +66,11 @@ button { cursor: pointer; font-family: inherit; }
 .exam-hdr .right { display: flex; align-items: center; gap: 12px; }
 .prog { font-size: 14px; color: var(--muted); }
 .btn-exit { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--muted); }
+.btn-review {
+  background: #fff7ed; color: #9a3412; border: 1px solid #fdba74;
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;
+}
+.btn-review.active { background: #f59e0b; border-color: #f59e0b; color: #fff; }
 .btn-score { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 16px; font-size: 14px; font-weight: 600; }
 .btn-score:hover { background: var(--primary-dark); }
 
@@ -101,8 +106,19 @@ button { cursor: pointer; font-family: inherit; }
 .qrow:hover { background: #f8fafc; }
 .qrow.focus { background: var(--primary-light); }
 .qrow.done { background: #f0fdf4; }
+.qrow.reviewed:not(.focus) { background: #fffbeb; }
+.qrow.hidden-by-filter { display: none; }
 .qnum { width: 36px; font-size: 14px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
 .qchoices { display: flex; gap: 4px; flex: 1; }
+.review-toggle {
+  display: flex; align-items: center; gap: 6px; margin-left: 10px;
+  color: var(--muted); font-size: 12px; flex-shrink: 0;
+}
+.review-toggle input { width: 16px; height: 16px; }
+.filter-empty {
+  display: none; padding: 20px 16px; color: var(--muted);
+  text-align: center; font-size: 13px;
+}
 .cbtn {
   flex: 1; padding: 6px 0; border: 2px solid var(--border); border-radius: 6px;
   background: var(--card); font-size: 15px; font-weight: 500; text-align: center; min-width: 48px;
@@ -223,6 +239,7 @@ button { cursor: pointer; font-family: inherit; }
     <div class="right">
       <span class="prog" id="prog">0 / 50</span>
       <span class="rt-score" id="rt-score" style="display:none">✓ 0</span>
+      <button class="btn-review" id="btn-review-filter" style="display:none">見直す</button>
       <button class="btn-score" id="btn-submit">採点する</button>
     </div>
   </div>
@@ -299,7 +316,7 @@ function renderStartPage() {
 
 renderStartPage();
 
-let curKey=null, ans={}, focQ=1, ticker=null, remain=TIME, t0=null, submitted=false, rtMode=false, rtOk=0;
+let curKey=null, ans={}, reviewMarks={}, focQ=1, ticker=null, remain=TIME, t0=null, submitted=false, rtMode=false, rtOk=0, showReviewOnly=false;
 let curPdfBase='', showingDiagram=false;
 
 function toggleDiagram() {
@@ -359,10 +376,11 @@ btnGo.addEventListener("click", function() {
   const ex = ED[curKey];
   const noPdf = document.getElementById("nopdf").checked;
 
-  ans = {}; focQ = 1; remain = TIME; submitted = false; t0 = Date.now(); rtOk = 0;
+  ans = {}; reviewMarks = {}; focQ = 1; remain = TIME; submitted = false; t0 = Date.now(); rtOk = 0; showReviewOnly = false;
   rtMode = document.getElementById("realtime").checked;
   document.getElementById("rt-score").style.display = rtMode ? '' : 'none';
   if (rtMode) document.getElementById("rt-score").textContent = '✓ 0';
+  syncReviewFilterButton();
   document.getElementById("ex-title").textContent = ex.label;
 
   const pdf = document.getElementById("pdf-side");
@@ -402,18 +420,36 @@ function buildQs() {
         h += '<button class="cbtn" data-q="' + q + '" data-c="' + ch + '">' + ch + '</button>';
       }
       h += '</div>';
+      if (!rtMode) {
+        h += '<label class="review-toggle"><input type="checkbox" class="review-check" data-q="' + q + '"><span>見直す</span></label>';
+      }
       if (rtMode) h += '<div class="rt-mark"></div>';
       h += '</div>';
     }
   }
+  h += '<div class="filter-empty" id="review-empty">見直すにチェックした問題はまだありません。</div>';
   h += '<div class="kbd-hint"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>=イロハニ <kbd>↑</kbd><kbd>↓</kbd>=移動 <kbd>Enter</kbd>=次へ</div>';
-  document.getElementById("ans-side").innerHTML = h;
+  const ansSide = document.getElementById("ans-side");
+  ansSide.innerHTML = h;
 
-  document.getElementById("ans-side").addEventListener("click", function(e) {
+  ansSide.onclick = function(e) {
     const btn = e.target.closest(".cbtn");
     if (!btn) return;
     pick(parseInt(btn.dataset.q), btn.dataset.c);
-  });
+  };
+
+  ansSide.onchange = function(e) {
+    const check = e.target.closest('.review-check');
+    if (!check) return;
+    const q = parseInt(check.dataset.q, 10);
+    if (check.checked) reviewMarks[q] = true;
+    else delete reviewMarks[q];
+    const row = document.getElementById('qr' + q);
+    if (row) row.classList.toggle('reviewed', check.checked);
+    applyReviewFilter();
+  };
+
+  applyReviewFilter();
 }
 
 function pick(q, c) {
@@ -444,13 +480,67 @@ function pick(q, c) {
   setFoc(q);
 }
 
-function setFoc(q) {
+function getVisibleQuestions() {
+  return Array.from(document.querySelectorAll('.qrow[data-q]:not(.hidden-by-filter)')).map(function(row) {
+    return parseInt(row.dataset.q, 10);
+  });
+}
+
+function setFoc(q, smooth) {
+  const shouldSmooth = smooth !== false;
   document.querySelectorAll(".qrow.focus").forEach(r => r.classList.remove("focus"));
   const row = document.getElementById("qr" + q);
-  if (row) { row.classList.add("focus"); row.scrollIntoView({block:"nearest",behavior:"smooth"}); focQ = q; }
+  if (row && !row.classList.contains('hidden-by-filter')) {
+    row.classList.add("focus");
+    row.scrollIntoView({block:"nearest",behavior: shouldSmooth ? "smooth" : "auto"});
+    focQ = q;
+    return;
+  }
+  const firstVisible = getVisibleQuestions()[0];
+  if (!firstVisible) return;
+  const firstRow = document.getElementById("qr" + firstVisible);
+  if (!firstRow) return;
+  firstRow.classList.add("focus");
+  firstRow.scrollIntoView({block:"nearest",behavior: shouldSmooth ? "smooth" : "auto"});
+  focQ = firstVisible;
 }
 
 function updProg() { document.getElementById("prog").textContent = Object.keys(ans).length + " / " + TOTAL; }
+
+function syncReviewFilterButton() {
+  const btn = document.getElementById('btn-review-filter');
+  btn.style.display = rtMode ? 'none' : '';
+  btn.classList.toggle('active', !rtMode && showReviewOnly);
+  btn.setAttribute('aria-pressed', !rtMode && showReviewOnly ? 'true' : 'false');
+}
+
+function applyReviewFilter() {
+  document.querySelectorAll('.qrow[data-q]').forEach(function(row) {
+    const q = parseInt(row.dataset.q, 10);
+    const show = !showReviewOnly || !!reviewMarks[q];
+    row.classList.toggle('hidden-by-filter', !show);
+  });
+
+  const empty = document.getElementById('review-empty');
+  if (empty) {
+    empty.style.display = showReviewOnly && Object.keys(reviewMarks).length === 0 ? 'block' : 'none';
+  }
+
+  syncReviewFilterButton();
+  const current = document.getElementById('qr' + focQ);
+  if (!current || current.classList.contains('hidden-by-filter')) {
+    setFoc(focQ, false);
+  }
+}
+
+function moveFocus(delta) {
+  const visible = getVisibleQuestions();
+  if (!visible.length) return;
+  const currentIndex = visible.indexOf(focQ);
+  const startIndex = currentIndex === -1 ? 0 : currentIndex;
+  const nextIndex = Math.max(0, Math.min(visible.length - 1, startIndex + delta));
+  setFoc(visible[nextIndex]);
+}
 
 // ======== TIMER ========
 function tick() {
@@ -478,6 +568,12 @@ document.getElementById("btn-submit").addEventListener("click", function() {
 document.getElementById("btn-exit").addEventListener("click", function() {
   if (!confirm("中断しますか？回答は保存されません。")) return;
   clearInterval(ticker); window.onbeforeunload = null; go("pg-start"); showHist();
+});
+
+document.getElementById('btn-review-filter').addEventListener('click', function() {
+  if (rtMode) return;
+  showReviewOnly = !showReviewOnly;
+  applyReviewFilter();
 });
 
 function doScore() {
@@ -634,9 +730,9 @@ document.addEventListener("keydown", function(e) {
     case "2": pick(focQ,"ロ"); break;
     case "3": pick(focQ,"ハ"); break;
     case "4": pick(focQ,"ニ"); break;
-    case "ArrowDown": e.preventDefault(); if(focQ<TOTAL) setFoc(focQ+1); break;
-    case "ArrowUp": e.preventDefault(); if(focQ>1) setFoc(focQ-1); break;
-    case "Enter": e.preventDefault(); if(focQ<TOTAL) setFoc(focQ+1); break;
+    case "ArrowDown": e.preventDefault(); moveFocus(1); break;
+    case "ArrowUp": e.preventDefault(); moveFocus(-1); break;
+    case "Enter": e.preventDefault(); moveFocus(1); break;
   }
 });
 
