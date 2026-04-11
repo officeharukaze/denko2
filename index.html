@@ -50,6 +50,9 @@ button { cursor: pointer; font-family: inherit; }
 .hist-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
 .hist-pass { color: var(--success); font-weight: 600; }
 .hist-fail { color: var(--danger); font-weight: 600; }
+.credit-note {
+  margin-top: 16px; font-size: 12px; color: var(--muted); text-align: center;
+}
 
 /* ===== EXAM PAGE ===== */
 .exam-page { height: 100vh; flex-direction: column; }
@@ -73,6 +76,11 @@ button { cursor: pointer; font-family: inherit; }
 .btn-review.active { background: #f59e0b; border-color: #f59e0b; color: #fff; }
 .btn-score { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 16px; font-size: 14px; font-weight: 600; }
 .btn-score:hover { background: var(--primary-dark); }
+
+.exam-source-bar {
+  display: none; padding: 8px 16px; background: #fff7ed; color: #9a3412;
+  border-bottom: 1px solid #fdba74; font-size: 12px; line-height: 1.5;
+}
 
 .exam-body { display: flex; flex: 1; overflow: hidden; }
 .pdf-side { flex: 3; background: #525659; display: flex; flex-direction: column; }
@@ -230,6 +238,8 @@ button { cursor: pointer; font-family: inherit; }
       <h3>📊 受験履歴</h3>
       <div id="hist-list"><p style="font-size:13px;color:var(--muted)">まだ受験履歴がありません</p></div>
     </div>
+
+    <div class="credit-note">Powerd by OfficeHarukaze</div>
   </div>
 </div>
 
@@ -248,6 +258,7 @@ button { cursor: pointer; font-family: inherit; }
       <button class="btn-score" id="btn-submit">採点する</button>
     </div>
   </div>
+  <div class="exam-source-bar" id="exam-source-bar"></div>
   <div class="exam-body">
     <div class="pdf-side" id="pdf-side">
       <div class="pdf-nav" id="pdf-nav">
@@ -317,6 +328,7 @@ function renderStartPage() {
     opt.textContent = ED[key].label;
     select.appendChild(opt);
   });
+
 }
 
 renderStartPage();
@@ -370,6 +382,34 @@ function go(id) {
 // ======== SELECT ========
 const sel = document.getElementById("sel");
 const btnGo = document.getElementById("btn-go");
+function formatSourceLabel(label) {
+  const match = String(label || '').match(/^(令和\d+)年\s+(上期|下期)(?:\s+(午前|午後))?$/);
+  if (!match) return '出典：' + (label || '第二種電気工事士試験');
+  const year = match[1] + '年度';
+  const term = match[2];
+  const session = match[3] ? '（' + match[3] + '）' : '';
+  return '出典：' + year + term + '第二種電気工事士試験' + session;
+}
+
+function getSourceNoteHtml(key) {
+  if (!key || !ED[key]) {
+    return '出典は選択した試験に応じて表示されます。<br>問題文の改変はありません。出題範囲表示はアプリ独自の参考区分です。';
+  }
+  return formatSourceLabel(ED[key].label) + '<br>問題文の改変はありません。出題範囲表示はアプリ独自の参考区分です。';
+}
+
+function updateExamSourceBar(key) {
+  const el = document.getElementById('exam-source-bar');
+  if (!el) return;
+  if (!key || !ED[key]) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = getSourceNoteHtml(key);
+}
+
 sel.addEventListener("change", function() {
   btnGo.disabled = !this.value;
 });
@@ -387,6 +427,7 @@ btnGo.addEventListener("click", function() {
   if (rtMode) document.getElementById("rt-score").textContent = '✓ 0';
   syncReviewFilterButton();
   document.getElementById("ex-title").textContent = ex.label;
+  updateExamSourceBar(curKey);
 
   const pdf = document.getElementById("pdf-side");
   const ansSide = document.getElementById("ans-side");
